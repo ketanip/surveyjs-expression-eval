@@ -1,4 +1,5 @@
-const jsep = require("jsep")
+import jsep from "jsep";
+import inbuildFunctions from "./inbuildFunctions";
 
 jsep.addBinaryOp("=", 14)
 jsep.addBinaryOp("==", 14)
@@ -34,8 +35,8 @@ const rightSideUnaryOperators = ["notempty", "empty"]
 jsep.addBinaryOp("notempty", 14)
 jsep.addBinaryOp("empty", 14)
 
-const setupReduceInsideBraces = (functions, context) => {
-  const reduceInsideBraces = args => {
+const setupReduceInsideBraces = (functions: Function[], context: any) => {
+  const reduceInsideBraces:any = (args: string | any[]) => {
     if (args.length !== 1)
       throw new Error(
         `Invalid content in curly braces (1): "${JSON.stringify(args)}"`
@@ -44,13 +45,12 @@ const setupReduceInsideBraces = (functions, context) => {
       case "Identifier":
         return context[args[0].name]
       case "MemberExpression": {
-        const { property, object } = args[0]
+        const { property, object }: any = args[0]
         try {
           return reduceInsideBraces([object])[property.name]
-        } catch (e) {
+        } catch (e: any) {
           throw new Error(
-            `InnerBraceExpression (error accessing ${property.name})\n${
-              e.stack
+            `InnerBraceExpression (error accessing ${property.name})\n${e.stack
             }`
           )
         }
@@ -69,7 +69,7 @@ const setupReduceInsideBraces = (functions, context) => {
   return reduceInsideBraces
 }
 
-const isValueEmpty = (value) => {
+const isValueEmpty = (value:any) => {
   if (Array.isArray(value) && value.length === 0) return true;
   if (!!value && typeof value === "object" && value.constructor === Object) {
     for (var key in value) {
@@ -81,9 +81,9 @@ const isValueEmpty = (value) => {
 }
 
 
-const setupReduce = (functions, context) => {
+const setupReduce = (functions: Function[], context: any) => {
   const reduceInsideBraces = setupReduceInsideBraces(functions, context)
-  const reduce = tree => {
+  const reduce = (tree: any) => {
     if (typeof tree !== "object") return tree
     switch (tree.type) {
       case "CallExpression": {
@@ -92,13 +92,13 @@ const setupReduce = (functions, context) => {
         }
         if (functions[tree.callee.name]) {
           return functions[tree.callee.name](
-            ...tree.arguments.map(a => reduce(a))
+            ...tree.arguments.map((a: any) => reduce(a))
           )
         }
         throw new Error(`Function "${tree.callee.name}" does not exist`)
       }
       case "BinaryExpression": {
-        const [left, right] = [reduce(tree.left), reduce(tree.right)]
+        const [left, right]: any = [reduce(tree.left), reduce(tree.right)]
         switch (tree.operator) {
           case "=":
           case "==":
@@ -136,23 +136,23 @@ const setupReduce = (functions, context) => {
           case "notcontain":
           case "notcontains":
             return !(left || []).includes(right)
-          case "anyof": 
-              if (!left && isValueEmpty(right)) return true;
-              if (!Array.isArray(right))
-                return (left || []).includes(right);
-              for (var i = 0; i < right.length; i++) {
-                if ((left || []).includes(right[i])) return true;
-              }
-              return false;
-          case "allof": 
-              if (!left && !isValueEmpty(right)) return false;
-              if (!Array.isArray(right))
-                return (left || []).includes(right);
-              for (var i = 0; i < right.length; i++) {
-                if (!(left || []).includes(right[i]))
-                  return false;
-              }
-              return true;
+          case "anyof":
+            if (!left && isValueEmpty(right)) return true;
+            if (!Array.isArray(right))
+              return (left || []).includes(right);
+            for (var i = 0; i < right.length; i++) {
+              if ((left || []).includes(right[i])) return true;
+            }
+            return false;
+          case "allof":
+            if (!left && !isValueEmpty(right)) return false;
+            if (!Array.isArray(right))
+              return (left || []).includes(right);
+            for (var i = 0; i < right.length; i++) {
+              if (!(left || []).includes(right[i]))
+                return false;
+            }
+            return true;
           case "or":
           case "||":
           case "|":
@@ -171,7 +171,7 @@ const setupReduce = (functions, context) => {
         throw new Error("unsupported unary expression")
       }
       case "ArrayExpression": {
-        return tree.elements.map(e => reduce(e))
+        return tree.elements.map((e: any) => reduce(e))
       }
       case "Literal": {
         return tree.value
@@ -184,7 +184,10 @@ const setupReduce = (functions, context) => {
   return reduce
 }
 
-module.exports = (expr, context, functions) => {
+const evaluate = (expr: string, context: any, functions: any) => {
+  // Adding default functions.
+  functions = {...inbuildFunctions, ...functions}
+  
   // jsep can't handle "{" and "}", so replace with a function
   expr = expr.replace(/{([^}]*)}/g, "getVarFromContext($1)")
 
@@ -206,4 +209,6 @@ module.exports = (expr, context, functions) => {
 
   // Evaluate Tree
   return setupReduce(functions, context)(parsedTree)
-}
+};
+
+export default evaluate;
